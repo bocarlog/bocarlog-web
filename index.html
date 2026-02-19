@@ -53,21 +53,19 @@
     </div>
 
     <script>
-        // 초기화 순서를 엄격히 지킵니다.
+        // 1. 설정값 선언
         const SUPABASE_URL = '대표님의_PROJECT_URL';
         const SUPABASE_KEY = '대표님의_ANON_KEY';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // 사진 선택 시 미리보기 생성 함수
+    
+        // 2. 사진 선택 및 미리보기 (이미 잘 작동 중!)
         function handleFileSelect(event) {
             const files = event.target.files;
             const container = document.getElementById('preview-container');
             const label = document.getElementById('fileLabel');
-            container.innerHTML = ''; // 기존 미리보기 초기화
-
+            container.innerHTML = ''; 
+    
             if (files.length > 0) {
                 label.innerText = `${files.length}장의 사진이 선택되었습니다`;
-                
                 Array.from(files).forEach(file => {
                     const reader = new FileReader();
                     reader.onload = (e) => {
@@ -80,56 +78,62 @@
                 });
             }
         }
-
+    
+        // 3. 업로드 실행 (함수 내부에서 supabaseClient를 정의하여 오류 해결)
         async function handleUpload() {
-            const email = document.getElementById('email').value.trim();
-            const carNumber = document.getElementById('carNumber').value.trim();
-            const mileage = document.getElementById('mileage').value.trim();
-            const files = document.getElementById('files').files;
             const statusDiv = document.getElementById('status');
-
-            if (!email || !carNumber || files.length === 0) {
-                alert("이메일, 차량번호, 사진은 필수입니다!");
-                return;
-            }
-
-            statusDiv.innerHTML = "⏳ <b>업로드 중...</b>\n사진 용량에 따라 시간이 걸릴 수 있습니다.";
-            statusDiv.style.color = "#f39c12";
-
+            
             try {
-                // 1. 차량 정보 등록 (upsert)
+                // 버튼 클릭 시점에 클라이언트를 생성하여 초기화 오류 방지
+                const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
+                const email = document.getElementById('email').value.trim();
+                const carNumber = document.getElementById('carNumber').value.trim();
+                const mileage = document.getElementById('mileage').value.trim();
+                const files = document.getElementById('files').files;
+    
+                if (!email || !carNumber || files.length === 0) {
+                    alert("이메일, 차량번호, 사진은 필수입니다!");
+                    return;
+                }
+    
+                statusDiv.innerHTML = "⏳ <b>업로드 중...</b>";
+                statusDiv.style.color = "#f39c12";
+    
+                // 차량 정보 저장 (vehicles 테이블)
                 const { data: vData, error: vError } = await supabaseClient
                     .from('vehicles')
                     .upsert({ owner_email: email, car_number: carNumber, current_mileage: mileage }, { onConflict: 'owner_email' })
                     .select().single();
-
+    
                 if (vError) throw vError;
-
-                // 2. 파일 스토리지 업로드 및 로그 생성
+    
+                // 이미지 업로드 (receipts 버킷)
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     const fileName = `${vData.id}/${Date.now()}_${i}.jpg`;
-
+    
                     const { error: sError } = await supabaseClient.storage
                         .from('receipts')
                         .upload(fileName, file);
                     if (sError) throw sError;
-
+    
                     const { error: lError } = await supabaseClient
                         .from('maintenance_logs')
                         .insert({ vehicle_id: vData.id, image_url: fileName });
                     if (lError) throw lError;
                 }
-
-                statusDiv.innerHTML = "✅ <b>업로드 성공!</b>\n정성껏 관리하신 내역이 접수되었습니다.";
+    
+                statusDiv.innerHTML = "✅ <b>업로드 성공!</b>";
                 statusDiv.style.color = "#27ae60";
-                document.getElementById('preview-container').innerHTML = ''; // 완료 후 미리보기 삭제
+    
             } catch (err) {
                 console.error(err);
-                statusDiv.innerHTML = "❌ <b>오류 발생</b>\n" + err.message;
+                statusDiv.innerHTML = "❌ <b>오류 발생:</b> " + err.message;
                 statusDiv.style.color = "#e74c3c";
             }
         }
     </script>
 </body>
 </html>
+
