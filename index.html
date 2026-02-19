@@ -118,4 +118,18 @@
                     const { error: lError } = await supabaseClient
                         .from('maintenance_logs')
                         .insert({ vehicle_id: vData.id, image_url: fileName });
-                    if (lError) throw
+                    if (lError) throw lError;
+                }
+
+                statusDiv.innerHTML = "✅ <b>업로드 성공!</b>\n정성껏 관리하신 내역이 접수되었습니다.";
+                statusDiv.style.color = "#27ae60";
+                document.getElementById('preview-container').innerHTML = ''; // 완료 후 미리보기 삭제
+            } catch (err) {
+                console.error(err);
+                statusDiv.innerHTML = "❌ <b>오류 발생</b>\n" + err.message;
+                statusDiv.style.color = "#e74c3c";
+            }
+        }
+    </script>
+</body>
+</html>
