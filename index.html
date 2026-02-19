@@ -3,63 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>보카로그 관리 인증 | 내 차의 가치를 숫자로</title>
+    <title>보카로그 관리 인증</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
         :root { --gold: #FFD700; --dark: #1a1a1a; --gray: #888; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        body { font-family: -apple-system, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; display: flex; justify-content: center; }
         .container { background: white; width: 100%; max-width: 480px; padding: 30px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
         .header { text-align: center; margin-bottom: 30px; }
-        .logo { font-size: 24px; font-weight: 900; color: var(--dark); letter-spacing: -1px; }
-        .badge { background: var(--gold); display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-top: 8px; }
-        label { font-size: 14px; font-weight: 600; color: var(--dark); display: block; margin-bottom: 8px; margin-top: 20px; }
+        .logo { font-size: 24px; font-weight: 900; color: var(--dark); }
+        label { font-size: 14px; font-weight: 600; display: block; margin: 20px 0 8px; }
         input { width: 100%; padding: 14px; border: 1px solid #eee; border-radius: 12px; box-sizing: border-box; font-size: 16px; background: #fafafa; }
-        input:focus { outline: 2px solid var(--gold); background: white; }
-        .upload-area { border: 2px dashed #ddd; padding: 40px 20px; text-align: center; border-radius: 16px; cursor: pointer; transition: 0.3s; margin-top: 10px; }
-        .upload-area:active { background: #fffdf0; border-color: var(--gold); }
-        .upload-icon { font-size: 30px; margin-bottom: 10px; display: block; }
-        .upload-text { font-size: 14px; color: var(--gray); }
+        .upload-area { border: 2px dashed var(--gold); padding: 30px; text-align: center; border-radius: 16px; cursor: pointer; }
+        
+        /* 미리보기 영역 스타일 */
+        #preview-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .preview-img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+        
         .btn-submit { width: 100%; padding: 18px; background: var(--dark); color: white; border: none; border-radius: 16px; font-weight: bold; font-size: 17px; margin-top: 30px; cursor: pointer; }
-        #status { margin-top: 20px; text-align: center; font-size: 14px; line-height: 1.5; }
+        #status { margin-top: 20px; text-align: center; font-size: 14px; white-space: pre-line; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="logo">BOCARLOG</div>
-            <div class="badge">관리 인증 서비스 1기</div>
-            <p style="color:#666; font-size:14px; margin-top:15px;">정성 들여 관리한 내 차,<br>숫자로 가치를 증명하세요.</p>
+            <p style="color:#666; font-size:14px; margin-top:10px;">정성 들여 관리한 내 차,<br>인증 사진을 업로드해 주세요.</p>
         </div>
         
         <label>이메일 주소</label>
-        <input type="email" id="email" placeholder="결과를 받으실 이메일">
+        <input type="email" id="email" placeholder="example@email.com">
         
         <label>차량번호</label>
-        <input type="text" id="carNumber" placeholder="예: 123가 4567">
+        <input type="text" id="carNumber" placeholder="예: 12가 3456">
         
         <label>현재 주행거리 (km)</label>
         <input type="number" id="mileage" placeholder="예: 45000">
 
         <label>정비 내역서 / 영수증 사진</label>
         <div class="upload-area" onclick="document.getElementById('files').click()">
-            <span class="upload-icon">📸</span>
-            <span id="fileLabel" class="upload-text">여러 장을 한꺼번에 올릴 수 있어요</span>
-            <input type="file" id="files" multiple accept="image/*" style="display:none" onchange="updateFileLabel()">
+            <span style="font-size: 30px;">📸</span><br>
+            <span id="fileLabel" style="font-size: 14px; color: var(--gray);">사진을 선택하거나 촬영하세요</span>
+            <input type="file" id="files" multiple accept="image/*" style="display:none" onchange="handleFileSelect(event)">
         </div>
 
-        <button class="btn-submit" onclick="handleUpload()">가치 측정 시작하기</button>
+        <div id="preview-container"></div>
+
+        <button class="btn-submit" onclick="handleUpload()">업로드</button>
         <div id="status"></div>
     </div>
 
     <script>
-        // 보카로그 프로젝트 정보 (실제 값으로 꼭 변경하세요!)
-        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-        const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        // 초기화 순서를 엄격히 지킵니다.
+        const SUPABASE_URL = '대표님의_PROJECT_URL';
+        const SUPABASE_KEY = '대표님의_ANON_KEY';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        function updateFileLabel() {
-            const count = document.getElementById('files').files.length;
-            document.getElementById('fileLabel').innerText = count > 0 ? `${count}장의 사진이 선택되었습니다` : "여러 장을 한꺼번에 올릴 수 있어요";
+        // 사진 선택 시 미리보기 생성 함수
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            const container = document.getElementById('preview-container');
+            const label = document.getElementById('fileLabel');
+            container.innerHTML = ''; // 기존 미리보기 초기화
+
+            if (files.length > 0) {
+                label.innerText = `${files.length}장의 사진이 선택되었습니다`;
+                
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'preview-img';
+                        container.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
         }
 
         async function handleUpload() {
@@ -74,11 +93,11 @@
                 return;
             }
 
-            statusDiv.innerHTML = "⏳ <b>데이터 분석 및 업로드 중...</b><br>사진 용량에 따라 시간이 걸릴 수 있습니다.";
+            statusDiv.innerHTML = "⏳ <b>업로드 중...</b>\n사진 용량에 따라 시간이 걸릴 수 있습니다.";
             statusDiv.style.color = "#f39c12";
 
             try {
-                // 1. 차량 정보 등록
+                // 1. 차량 정보 등록 (upsert)
                 const { data: vData, error: vError } = await supabaseClient
                     .from('vehicles')
                     .upsert({ owner_email: email, car_number: carNumber, current_mileage: mileage }, { onConflict: 'owner_email' })
@@ -86,7 +105,7 @@
 
                 if (vError) throw vError;
 
-                // 2. 이미지 업로드
+                // 2. 파일 스토리지 업로드 및 로그 생성
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     const fileName = `${vData.id}/${Date.now()}_${i}.jpg`;
@@ -94,24 +113,9 @@
                     const { error: sError } = await supabaseClient.storage
                         .from('receipts')
                         .upload(fileName, file);
-
                     if (sError) throw sError;
 
                     const { error: lError } = await supabaseClient
                         .from('maintenance_logs')
                         .insert({ vehicle_id: vData.id, image_url: fileName });
-
-                    if (lError) throw lError;
-                }
-
-                statusDiv.innerHTML = "✅ <b>전송 성공!</b><br>보카로그가 정성껏 분석하여 리포트를 보내드릴게요.";
-                statusDiv.style.color = "#27ae60";
-            } catch (err) {
-                console.error(err);
-                statusDiv.innerHTML = "❌ <b>오류 발생</b><br>" + err.message;
-                statusDiv.style.color = "#e74c3c";
-            }
-        }
-    </script>
-</body>
-</html>
+                    if (lError) throw
