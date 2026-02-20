@@ -3,55 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>보카로그 v0.9</title>
+    <title>보카로그 v1.1</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --gold: #FFD700; --dark: #1a1a1a; }
-        body { font-family: sans-serif; background: #f8f9fa; padding: 20px; display: flex; justify-content: center; }
-        .container { background: white; width: 100%; max-width: 400px; padding: 25px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        .btn-submit { width: 100%; padding: 15px; background: var(--dark); color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 20px; }
-        #status { margin-top: 15px; text-align: center; font-size: 14px; font-weight: bold; white-space: pre-line; }
+        :root { --gold: #FFD700; --dark: #1a1a1a; --gray: #888; }
+        body { font-family: -apple-system, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { background: white; width: 100%; max-width: 480px; padding: 30px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .logo { font-size: 24px; font-weight: 900; color: var(--dark); margin: 0; }
+        label { font-size: 14px; font-weight: 600; display: block; margin: 20px 0 8px; }
+        input { width: 100%; padding: 14px; border: 1px solid #eee; border-radius: 12px; box-sizing: border-box; font-size: 16px; background: #fafafa; margin-bottom: 10px; }
+        .btn-submit { width: 100%; padding: 18px; background: var(--dark); color: white; border: none; border-radius: 16px; font-weight: bold; font-size: 17px; margin-top: 30px; cursor: pointer; }
+        #status { margin-top: 20px; text-align: center; font-size: 14px; white-space: pre-line; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>BOCARLOG v0.9</h2>
-        <form onsubmit="handleUpload(event)">
-            <input type="email" id="email" placeholder="이메일 주소" required>
-            <input type="text" id="carNumber" placeholder="차량번호" required>
-            <input type="number" id="mileage" placeholder="주행거리 (km)" required>
+        <div class="header">
+            <h1 class="logo">BOCARLOG v1.1</h1>
+            <p style="color:#666; font-size:14px; margin-top:10px;">정비내역서 사진을 업로드해 주세요.</p>
+        </div>
+        
+        <form id="uploadForm">
+            <label>이메일 주소</label>
+            <input type="email" id="email" placeholder="example@email.com" required>
+            
+            <label>차량번호</label>
+            <input type="text" id="carNumber" placeholder="예: 38버 2400" required>
+            
+            <label>현재 주행거리 (km)</label>
+            <input type="number" id="mileage" placeholder="예: 10112" required>
+
+            <label>정비 내역서 사진</label>
             <input type="file" id="files" multiple accept="image/*" required>
+
             <button type="submit" class="btn-submit">업로드 시작</button>
         </form>
         <div id="status"></div>
     </div>
 
     <script>
-        async function handleUpload(e) {
-            // 💡 핵심: 폼 제출 시 발생하는 페이지 새로고침을 막습니다!
-            if (e) e.preventDefault();
+        const URL = 'https://zcwcmhrvxdwgzbzwyqty.supabase.co';
+        const KEY = 'sb_publishable_EDxa41-p5HGoU_F4PatQlA_VsAdk3-F';
+        
+        // 💡 보안 벽을 우회하기 위한 특수 설정 주입
+        const supabaseClient = supabase.createClient(URL, KEY, {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false
+            }
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            // 💡 대표님이 찾으신 핵심: 새로고침 방지!
+            e.preventDefault();
 
             const statusDiv = document.getElementById('status');
-            const URL = 'https://zcwcmhrvxdwgzbzwyqty.supabase.co';
-            const KEY = 'sb_publishable_EDxa41-p5HGoU_F4PatQlA_VsAdk3-F';
-
-            if (!window.supabase) {
-                alert("라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.");
-                return;
-            }
-            const supabaseClient = window.supabase.createClient(URL, KEY);
-
             const email = document.getElementById('email').value.trim();
             const carNumber = document.getElementById('carNumber').value.trim();
             const mileage = document.getElementById('mileage').value;
             const fileInput = document.getElementById('files');
 
-            statusDiv.innerText = "⏳ 데이터 전송 준비 중...";
+            statusDiv.innerText = "⏳ 서버와 통신 중...";
             statusDiv.style.color = "#f39c12";
 
             try {
-                // 차량 정보 등록 (v2 방식 upsert)
+                // 1. 차량 정보 등록 (Insert)
                 const { data: vData, error: vError } = await supabaseClient
                     .from('vehicles')
                     .upsert({ owner_email: email, car_number: carNumber, current_mileage: mileage }, { onConflict: 'owner_email' })
@@ -60,7 +78,8 @@
                 if (vError) throw vError;
                 const vehicleId = vData[0].id;
 
-                statusDiv.innerText = "⏳ 사진 업로드 중...";
+                // 2. 사진 업로드 및 로그 기록
+                statusDiv.innerText = "⏳ 사진 저장 중...";
                 for (let i = 0; i < fileInput.files.length; i++) {
                     const file = fileInput.files[i];
                     const path = `${vehicleId}/${Date.now()}_${i}.jpg`;
@@ -71,14 +90,15 @@
                     await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vehicleId, image_url: path });
                 }
 
-                statusDiv.innerText = "✅ 성공적으로 저장되었습니다!";
+                statusDiv.innerText = "✅ 모든 데이터가 성공적으로 저장되었습니다!";
                 statusDiv.style.color = "green";
+                document.getElementById('uploadForm').reset();
             } catch (err) {
                 console.error(err);
-                statusDiv.innerText = "❌ 오류: " + (err.message || "연결 실패");
+                statusDiv.innerText = "❌ 오류 발생: " + (err.message || "연결 실패");
                 statusDiv.style.color = "red";
             }
-        }
+        });
     </script>
 </body>
 </html>
