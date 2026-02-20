@@ -23,7 +23,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo">BOCARLOG v0.3</h1>
+            <h1 class="logo">BOCARLOG v0.4</h1>
             <p style="color:#666; font-size:14px; margin-top:10px;">정성 들여 관리한 내 차,<br>정비내역서 사진을 업로드해 주세요.</p>
         </div>
         
@@ -51,15 +51,14 @@
         const KEY = 'sb_publishable_EDxa41-p5HGoU_F4PatQlA_VsAdk3-F';
         let supabaseClient;
 
-        // 2. 엔진이 켜졌는지 확인하는 함수
+        // 2. 라이브러리가 로드되었는지 확인하며 안전하게 초기화
         function initSupabase() {
             if (window.supabase && !supabaseClient) {
                 supabaseClient = window.supabase.createClient(URL, KEY);
-                console.log("Supabase 준비 완료!");
+                console.log("준비 완료");
             }
         }
 
-        // 페이지가 열리자마자 바로 엔진 가동
         window.onload = initSupabase;
 
         function handleFileSelect(event) {
@@ -83,13 +82,11 @@
         }
 
         async function handleUpload() {
-            // 3. 버튼 눌렀을 때 엔진이 안 켜져 있으면 그 자리에서 즉시 다시 켭니다.
-            if (!supabaseClient) {
-                initSupabase();
-            }
+            // 버튼 눌렀을 때 초기화 안 되어 있으면 한 번 더 시도
+            if (!supabaseClient) initSupabase();
             
             if (!supabaseClient) {
-                alert("인터넷 연결이 불안정하여 도구를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+                alert("아직 도구를 불러오는 중입니다. 3초만 기다려 주세요!");
                 return;
             }
 
@@ -119,23 +116,4 @@
                     const fileName = `${vData.id}/${Date.now()}_${i}.jpg`;
                     const { error: sError } = await supabaseClient.storage.from('receipts').upload(fileName, file);
                     if (sError) throw sError;
-                    await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vData.id, image_url: fileName });
-                }
-
-                statusDiv.innerHTML = "✅ 업로드 성공!\n데이터가 안전하게 저장되었습니다.";
-                statusDiv.style.color = "#27ae60";
-            } catch (err) {
-                statusDiv.innerHTML = "❌ 오류 발생: " + err.message;
-                statusDiv.style.color = "#e74c3c";
-            }
-        }
-    </script>
-</body>
-</html>
-
-
-
-
-
-
-
+                    await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vData.id,
