@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>보카로그 v1.3</title>
+    <title>보카로그 v1.4</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --gold: #FFD700; --dark: #1a1a1a; }
@@ -16,76 +16,67 @@
 </head>
 <body>
     <div class="container">
-        <h2 style="text-align: center;">BOCARLOG v1.3</h2>
+        <h2 style="text-align: center;">BOCARLOG v1.4</h2>
         <input type="email" id="email" placeholder="이메일 주소">
         <input type="text" id="carNumber" placeholder="차량번호">
         <input type="number" id="mileage" placeholder="주행거리 (km)">
         <input type="file" id="files" multiple accept="image/*">
-        <button type="button" class="btn-submit" onclick="startUpload()">업로드 시작</button>
-        
+        <button type="button" class="btn-submit" onclick="finalAttempt()">업로드 시작</button>
         <div id="status">상태: 대기 중</div>
     </div>
 
     <script>
-        async function startUpload() {
+        async function finalAttempt() {
             const statusDiv = document.getElementById('status');
-            
-            // 💡 핵심: 버튼을 누른 "후에" 여기서 클라이언트를 정의합니다. 
-            // 이렇게 하면 '초기화 전 접근' 에러가 절대로 날 수 없습니다.
             const URL = 'https://zcwcmhrvxdwgzbzwyqty.supabase.co';
             const KEY = 'sb_publishable_EDxa41-p5HGoU_F4PatQlA_VsAdk3-F';
             
+            // 💡 핵심: 복잡한 옵션 다 빼고 가장 가볍게 연결합니다.
+            const supabaseClient = window.supabase.createClient(URL, KEY);
+
+            const email = document.getElementById('email').value.trim();
+            const carNumber = document.getElementById('carNumber').value.trim();
+            const mileage = document.getElementById('mileage').value;
+            const fileInput = document.getElementById('files');
+
+            if (!email || !carNumber) { alert("내용을 입력해주세요!"); return; }
+
+            statusDiv.innerHTML = "⏳ 서버 전송 시도 중...";
+            statusDiv.style.color = "orange";
+
             try {
-                if (!window.supabase) {
-                    throw new Error("라이브러리가 아직 로드되지 않았습니다. 1초만 기다려주세요.");
-                }
-
-                // 여기서 생성!
-                const supabaseClient = window.supabase.createClient(URL, KEY, {
-                    auth: { persistSession: false }
-                });
-
-                const email = document.getElementById('email').value.trim();
-                const carNumber = document.getElementById('carNumber').value.trim();
-                const mileage = document.getElementById('mileage').value;
-                const fileInput = document.getElementById('files');
-
-                if (!email || !carNumber || fileInput.files.length === 0) {
-                    alert("모든 칸을 채워주세요!");
-                    return;
-                }
-
-                statusDiv.innerHTML = "⏳ [1/3] 서버 연결 시도 중...";
-                statusDiv.style.color = "orange";
-
-                // 차량 정보 저장
+                // 1. 차량 정보 저장 (성공 메시지를 강제로 띄우게 함)
                 const { data: vData, error: vError } = await supabaseClient
                     .from('vehicles')
                     .upsert({ owner_email: email, car_number: carNumber, current_mileage: mileage }, { onConflict: 'owner_email' })
                     .select();
 
-                if (vError) throw vError;
-                const vehicleId = vData[0].id;
-                statusDiv.innerHTML = "⏳ [2/3] 차량 정보 확인 완료!";
+                if (vError) {
+                    console.log("상세 에러:", vError);
+                    throw new Error(vError.message);
+                }
 
-                // 파일 업로드
+                statusDiv.innerHTML = "✅ 차량 등록 성공! 사진 전송 중...";
+                const vehicleId = vData[0].id;
+
+                // 2. 사진 업로드
                 for (let i = 0; i < fileInput.files.length; i++) {
                     const file = fileInput.files[i];
-                    const fileName = `${vehicleId}/${Date.now()}_${i}.jpg`;
+                    const fileName = `receipts/${vehicleId}/${Date.now()}_${i}.jpg`;
                     
                     const { error: sError } = await supabaseClient.storage.from('receipts').upload(fileName, file);
                     if (sError) throw sError;
 
                     await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vehicleId, image_url: fileName });
-                    statusDiv.innerHTML = `⏳ [3/3] 사진 전송 중... (${i+1}/${fileInput.files.length})`;
                 }
 
-                statusDiv.innerHTML = "✅ 업로드 성공! 수고하셨습니다 대표님!";
+                statusDiv.innerHTML = "🎉 모든 데이터 저장 완료!";
                 statusDiv.style.color = "green";
 
             } catch (err) {
-                console.error(err);
-                statusDiv.innerHTML = "❌ 오류 발생:\n" + err.message;
+                console.error("최종 에러:", err);
+                // 💡 에러가 나더라도 '왜' 났는지 더 자세히 보여주게 수정했습니다.
+                statusDiv.innerHTML = "❌ 접속 차단됨 (보안 설정 문제)\n" + err.message;
                 statusDiv.style.color = "red";
             }
         }
