@@ -23,7 +23,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo">BOCARLOG v0.4</h1>
+            <h1 class="logo">BOCARLOG v0.5</h1>
             <p style="color:#666; font-size:14px; margin-top:10px;">정성 들여 관리한 내 차,<br>정비내역서 사진을 업로드해 주세요.</p>
         </div>
         
@@ -116,4 +116,16 @@
                     const fileName = `${vData.id}/${Date.now()}_${i}.jpg`;
                     const { error: sError } = await supabaseClient.storage.from('receipts').upload(fileName, file);
                     if (sError) throw sError;
-                    await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vData.id,
+                    await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vData.id, image_url: fileName });
+                }
+
+                statusDiv.innerHTML = "✅ 업로드 성공!";
+                statusDiv.style.color = "#27ae60";
+            } catch (err) {
+                statusDiv.innerHTML = "❌ 오류: " + err.message;
+                statusDiv.style.color = "#e74c3c";
+            }
+        }
+    </script>
+</body>
+</html>
