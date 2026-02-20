@@ -23,7 +23,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo">BOCARLOG v0.1</h1>
+            <h1 class="logo">BOCARLOG v0.2</h1>
             <p style="color:#666; font-size:14px; margin-top:10px;">정성 들여 관리한 내 차,<br>정비내역서 사진을 업로드해 주세요.</p>
         </div>
         
@@ -47,14 +47,21 @@
     </div>
 
     <script>
-        // 변수 선언을 함수 밖에서 미리 해둡니다.
-        // 이 두 줄을 기존 코드 위에 그대로 덮어쓰기 하세요.
         const URL = 'https://zcwcmhrvxdwgzbzwyqty.supabase.co';
         const KEY = 'sb_publishable_EDxa41-p5HGoU_F4PatQlA_VsAdk3-F';
-        // 사진 미리보기 함수 (이미 잘 작동 중!)
-        // 💡 함수 밖에서 미리 클라이언트를 만들어버립니다.
-        const supabaseClient = supabase.createClient(URL, KEY);
-        
+        let supabaseClient; // 이름을 먼저 지어두고
+    
+        // 💡 화면이 다 그려진 후(로딩 완료 후)에 클라이언트를 만듭니다.
+        window.onload = function() {
+            if (typeof supabase !== 'undefined') {
+                supabaseClient = supabase.createClient(URL, KEY);
+                console.log("Supabase 준비 완료!");
+            } else {
+                console.error("Supabase 라이브러리가 아직 로드되지 않았습니다.");
+            }
+        };
+    
+        // 사진 미리보기 함수 (기존과 동일)
         function handleFileSelect(event) {
             const files = event.target.files;
             const container = document.getElementById('preview-container');
@@ -74,42 +81,42 @@
                 });
             }
         }
-
-        // 업로드 함수 (에러 완벽 차단 버전)
+    
         async function handleUpload() {
+            if (!supabaseClient) {
+                alert("시스템 준비 중입니다. 잠시만 기다려 주세요!");
+                return;
+            }
+            
             const statusDiv = document.getElementById('status');
             try {
-                // 초기화가 안 되어 있다면 여기서 수행
                 const email = document.getElementById('email').value.trim();
                 const carNumber = document.getElementById('carNumber').value.trim();
                 const mileage = document.getElementById('mileage').value.trim();
                 const files = document.getElementById('files').files;
-
+    
                 if (!email || !carNumber || files.length === 0) {
                     alert("이메일, 차량번호, 사진은 필수입니다!");
                     return;
                 }
-
+    
                 statusDiv.innerHTML = "⏳ 업로드 중...";
                 statusDiv.style.color = "#f39c12";
-
-                // 1. 차량 정보 저장
+    
                 const { data: vData, error: vError } = await supabaseClient
                     .from('vehicles')
                     .upsert({ owner_email: email, car_number: carNumber, current_mileage: mileage }, { onConflict: 'owner_email' })
                     .select().single();
                 if (vError) throw vError;
-
-                // 2. 이미지 업로드
+    
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     const fileName = `${vData.id}/${Date.now()}_${i}.jpg`;
                     const { error: sError } = await supabaseClient.storage.from('receipts').upload(fileName, file);
                     if (sError) throw sError;
-
                     await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vData.id, image_url: fileName });
                 }
-
+    
                 statusDiv.innerHTML = "✅ 업로드 성공!\n데이터가 안전하게 저장되었습니다.";
                 statusDiv.style.color = "#27ae60";
             } catch (err) {
@@ -120,6 +127,7 @@
     </script>
 </body>
 </html>
+
 
 
 
