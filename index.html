@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>보카로그 관리 인증</title>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --gold: #FFD700; --dark: #1a1a1a; --gray: #888; }
         body { font-family: -apple-system, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; display: flex; justify-content: center; }
@@ -23,7 +23,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo">BOCARLOG v0.2</h1>
+            <h1 class="logo">BOCARLOG v0.3</h1>
             <p style="color:#666; font-size:14px; margin-top:10px;">정성 들여 관리한 내 차,<br>정비내역서 사진을 업로드해 주세요.</p>
         </div>
         
@@ -49,19 +49,19 @@
     <script>
         const URL = 'https://zcwcmhrvxdwgzbzwyqty.supabase.co';
         const KEY = 'sb_publishable_EDxa41-p5HGoU_F4PatQlA_VsAdk3-F';
-        let supabaseClient; // 이름을 먼저 지어두고
-    
-        // 💡 화면이 다 그려진 후(로딩 완료 후)에 클라이언트를 만듭니다.
-        window.onload = function() {
-            if (typeof supabase !== 'undefined') {
-                supabaseClient = supabase.createClient(URL, KEY);
+        let supabaseClient;
+
+        // 2. 엔진이 켜졌는지 확인하는 함수
+        function initSupabase() {
+            if (window.supabase && !supabaseClient) {
+                supabaseClient = window.supabase.createClient(URL, KEY);
                 console.log("Supabase 준비 완료!");
-            } else {
-                console.error("Supabase 라이브러리가 아직 로드되지 않았습니다.");
             }
-        };
-    
-        // 사진 미리보기 함수 (기존과 동일)
+        }
+
+        // 페이지가 열리자마자 바로 엔진 가동
+        window.onload = initSupabase;
+
         function handleFileSelect(event) {
             const files = event.target.files;
             const container = document.getElementById('preview-container');
@@ -81,34 +81,39 @@
                 });
             }
         }
-    
+
         async function handleUpload() {
+            // 3. 버튼 눌렀을 때 엔진이 안 켜져 있으면 그 자리에서 즉시 다시 켭니다.
             if (!supabaseClient) {
-                alert("시스템 준비 중입니다. 잠시만 기다려 주세요!");
-                return;
+                initSupabase();
             }
             
+            if (!supabaseClient) {
+                alert("인터넷 연결이 불안정하여 도구를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+                return;
+            }
+
             const statusDiv = document.getElementById('status');
             try {
                 const email = document.getElementById('email').value.trim();
                 const carNumber = document.getElementById('carNumber').value.trim();
                 const mileage = document.getElementById('mileage').value.trim();
                 const files = document.getElementById('files').files;
-    
+
                 if (!email || !carNumber || files.length === 0) {
                     alert("이메일, 차량번호, 사진은 필수입니다!");
                     return;
                 }
-    
+
                 statusDiv.innerHTML = "⏳ 업로드 중...";
                 statusDiv.style.color = "#f39c12";
-    
+
                 const { data: vData, error: vError } = await supabaseClient
                     .from('vehicles')
                     .upsert({ owner_email: email, car_number: carNumber, current_mileage: mileage }, { onConflict: 'owner_email' })
                     .select().single();
                 if (vError) throw vError;
-    
+
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     const fileName = `${vData.id}/${Date.now()}_${i}.jpg`;
@@ -116,7 +121,7 @@
                     if (sError) throw sError;
                     await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vData.id, image_url: fileName });
                 }
-    
+
                 statusDiv.innerHTML = "✅ 업로드 성공!\n데이터가 안전하게 저장되었습니다.";
                 statusDiv.style.color = "#27ae60";
             } catch (err) {
@@ -127,6 +132,7 @@
     </script>
 </body>
 </html>
+
 
 
 
