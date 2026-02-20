@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>보카로그 v0.8</title>
+    <title>보카로그 v0.9</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --gold: #FFD700; --dark: #1a1a1a; }
@@ -16,25 +16,28 @@
 </head>
 <body>
     <div class="container">
-        <h2>BOCARLOG v0.8</h2>
-        <input type="email" id="email" placeholder="이메일 주소">
-        <input type="text" id="carNumber" placeholder="차량번호">
-        <input type="number" id="mileage" placeholder="주행거리 (km)">
-        <input type="file" id="files" multiple accept="image/*">
-        <button class="btn-submit" onclick="handleUpload()">업로드 시작</button>
+        <h2>BOCARLOG v0.9</h2>
+        <form onsubmit="handleUpload(event)">
+            <input type="email" id="email" placeholder="이메일 주소" required>
+            <input type="text" id="carNumber" placeholder="차량번호" required>
+            <input type="number" id="mileage" placeholder="주행거리 (km)" required>
+            <input type="file" id="files" multiple accept="image/*" required>
+            <button type="submit" class="btn-submit">업로드 시작</button>
+        </form>
         <div id="status"></div>
     </div>
 
     <script>
-        // 💡 버튼을 누를 때마다 이 안에서 모든 걸 새로 시작합니다. (꼬일 일 없음)
-        async function handleUpload() {
+        async function handleUpload(e) {
+            // 💡 핵심: 폼 제출 시 발생하는 페이지 새로고침을 막습니다!
+            if (e) e.preventDefault();
+
             const statusDiv = document.getElementById('status');
             const URL = 'https://zcwcmhrvxdwgzbzwyqty.supabase.co';
             const KEY = 'sb_publishable_EDxa41-p5HGoU_F4PatQlA_VsAdk3-F';
 
-            // 1. 여기서 직접 클라이언트를 만듭니다.
             if (!window.supabase) {
-                alert("잠시만요, 아직 도구를 불러오는 중입니다. 2초 뒤에 다시 눌러주세요.");
+                alert("라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.");
                 return;
             }
             const supabaseClient = window.supabase.createClient(URL, KEY);
@@ -44,16 +47,11 @@
             const mileage = document.getElementById('mileage').value;
             const fileInput = document.getElementById('files');
 
-            if (!email || !carNumber || fileInput.files.length === 0) {
-                alert("모든 칸을 채우고 사진을 선택해주세요!");
-                return;
-            }
-
-            statusDiv.innerText = "⏳ 서버 연결 중...";
+            statusDiv.innerText = "⏳ 데이터 전송 준비 중...";
             statusDiv.style.color = "#f39c12";
 
             try {
-                // 2. 차량 정보 등록
+                // 차량 정보 등록 (v2 방식 upsert)
                 const { data: vData, error: vError } = await supabaseClient
                     .from('vehicles')
                     .upsert({ owner_email: email, car_number: carNumber, current_mileage: mileage }, { onConflict: 'owner_email' })
@@ -62,7 +60,6 @@
                 if (vError) throw vError;
                 const vehicleId = vData[0].id;
 
-                // 3. 사진 업로드
                 statusDiv.innerText = "⏳ 사진 업로드 중...";
                 for (let i = 0; i < fileInput.files.length; i++) {
                     const file = fileInput.files[i];
@@ -74,7 +71,7 @@
                     await supabaseClient.from('maintenance_logs').insert({ vehicle_id: vehicleId, image_url: path });
                 }
 
-                statusDiv.innerText = "✅ 성공적으로 업로드되었습니다!";
+                statusDiv.innerText = "✅ 성공적으로 저장되었습니다!";
                 statusDiv.style.color = "green";
             } catch (err) {
                 console.error(err);
